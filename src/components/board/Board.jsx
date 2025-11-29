@@ -149,9 +149,9 @@ function Board(props) {
             return <circle
                 cx={endPos.x}
                 cy={endPos.y}
-                r="2"
+                r="4"
                 fill="#FFFFFF"
-                className="blinking-dot"
+                className={animation && "blinking-dot"}
             />
         }
 
