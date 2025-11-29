@@ -1,9 +1,9 @@
 import React, {useEffect, useRef, useState} from 'react';
-import Cell from "./Cell";
+import Cell from "../cell/Cell";
 import "./board.css"
 
 function Board(props) {
-    const {rows, cols} = props;
+    const {rows, cols, animation, snakeFactor, ladderFactor} = props;
     const totalCells = rows * cols;
     const [cells, setCells] = useState([]);
     const [snakes, setSnakes] = useState({});
@@ -30,26 +30,27 @@ function Board(props) {
     }
 
     function generateSnakesAndLadders() {
+        debugger
         const newSnakes = [];
         const newLadders = [];
-        const snakeCount = Math.floor(totalCells * 0.1)
-        const ladderCount = Math.floor(totalCells * 0.1)
+        const snakeCount = Math.floor(totalCells * (snakeFactor/100))
+        const ladderCount = Math.floor(totalCells * (ladderFactor/100))
 
         for (let i = 0; i < snakeCount; i++) {
             let start, end;
             do {
-                start = Math.floor(Math.random() * totalCells * 0.7+ Math.random() * (totalCells * 0.5)) + 1;
+                start = Math.floor(Math.random() * totalCells * 0.7 + Math.random() * (totalCells * 0.7)) + 1;
                 end = Math.floor(Math.random() * (totalCells)) + 1;
-            } while (start > end && start < totalCells)
+            } while (start <= end || start > totalCells || newSnakes[start] || newLadders[start] || newSnakes[end] || newLadders[end])
             newSnakes[start] = end;
         }
 
         for (let i = 0; i < ladderCount; i++) {
             let start, end;
             do {
-                start = Math.floor(Math.random() * totalCells) + 1;
-                end = Math.floor(Math.random() * (totalCells * 0.6)) + 1;
-            } while (start < end)
+                start = Math.floor(Math.random() * (totalCells * 0.6)) + 1;
+                end = Math.floor(Math.random() * (totalCells)) + 1;
+            } while (start >= end || newSnakes[start] || newLadders[start] || newSnakes[end] || newLadders[end])
             newLadders[start] = end;
         }
         setSnakes(newSnakes);
@@ -59,8 +60,14 @@ function Board(props) {
     useEffect(() => {
         generateSnakesAndLadders();
         generateCells();
-    }, [rows, cols]);
+    }, [rows, cols, snakeFactor, ladderFactor]);
 
+
+    useEffect(() => {
+        const handleResize = () => updateCellsPositions();
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     function renderLadders() {
         if (!cellPositions || cellPositions.length === 0) return;
@@ -70,67 +77,143 @@ function Board(props) {
 
             if (!startPos || !endPos) return;
 
+            const dx = endPos.x - startPos.x;
+            const dy = endPos.y - startPos.y;
+            const angle = Math.atan2(dy, dx);
+
+            const arrowSize = 12;
+            const arrowX1 = endPos.x - arrowSize * Math.cos(angle - Math.PI / 6);
+            const arrowY1 = endPos.y - arrowSize * Math.sin(angle - Math.PI / 6);
+            const arrowX2 = endPos.x - arrowSize * Math.cos(angle + Math.PI / 6);
+            const arrowY2 = endPos.y - arrowSize * Math.sin(angle + Math.PI / 6);
+
+            const pathId = `ladder-path-${start}-${end}`;
+
             return (
-                <line
-                    key={`ladder-${start}-${end}`}
-                    x1={startPos.x}
-                    y1={startPos.y}
-                    x2={endPos.x}
-                    y2={endPos.y}
-                    stroke="#e82986"
-                    strokeWidth="2px"
-                    strokeLinecap="round"
-                ></line>
+                <g key={`ladder-${start}-${end}`}>
+                    <defs>
+                        <path
+                            id={pathId}
+                            d={`M ${startPos.x} ${startPos.y} L ${endPos.x} ${endPos.y}`}
+                            fill="none"
+                        />
+                    </defs>
+                    <line
+                        x1={startPos.x}
+                        y1={startPos.y}
+                        x2={endPos.x}
+                        y2={endPos.y}
+                        stroke="#e82986"
+                        strokeWidth="2px"
+                        strokeLinecap="round"
+                    />
+                    <path
+                        d={`M ${endPos.x} ${endPos.y} L ${arrowX1} ${arrowY1} L ${arrowX2} ${arrowY2} Z`}
+                        fill="#e82986"
+                        className={animation && "blinking-arrow"}
+                    />
+                </g>
             )
         })
     }
 
+
+    function renderSnakeCircle(pathId, endPos) {
+        if (animation) {
+            return <circle
+                r="2"
+                fill="#FFFFFF"
+                className="blinking-dot"
+            >
+                <animateMotion
+                    dur="3s"
+                    repeatCount="indefinite"
+                    calcMode="linear"
+                >
+                    <mpath href={`#${pathId}`}/>
+                </animateMotion>
+                <animate
+                    attributeName="opacity"
+                    values="0.3;1;0.3"
+                    dur="1s"
+                    repeatCount="indefinite"
+                />
+                <animate
+                    attributeName="r"
+                    values="3;5;3"
+                    dur="1s"
+                    repeatCount="indefinite"
+                />
+            </circle>
+        } else {
+            return <circle
+                cx={endPos.x}
+                cy={endPos.y}
+                r="2"
+                fill="#FFFFFF"
+                className="blinking-dot"
+            />
+        }
+
+    }
+
     function renderSnakes() {
-        if (!cellPositions || cellPositions.length === 0) return;
+        if (!cellPositions || Object.keys(cellPositions).length === 0) return null;
+
         return Object.entries(snakes).map(([start, end]) => {
             const startPos = cellPositions[start];
             const endPos = cellPositions[end];
 
-            if (!startPos || !endPos) return;
+            if (!startPos || !endPos) return null;
 
             const dx = endPos.x - startPos.x;
             const dy = endPos.y - startPos.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
-            const segments = 10;
-            const amplitude = 5; // 非常小的幅度
+            const segments = 20;
+            const amplitude = 20;
             const pathData = [];
 
             pathData.push(`M ${startPos.x} ${startPos.y}`);
 
-            for (let i = 1; i <= segments; i++) {
+
+            for (let i = 1; i < segments; i++) {
                 const t = i / segments;
                 const x = startPos.x + dx * t;
                 const y = startPos.y + dy * t;
 
-                const wave = Math.sin(t * Math.PI * 8) * amplitude;
-
+                const wave = Math.sin(t * Math.PI * 2) * amplitude;
                 const offsetX = (dy / distance) * wave;
                 const offsetY = (-dx / distance) * wave;
 
-                if (i === segments) {
-                    pathData.push(`L ${endPos.x} ${endPos.y}`);
-                } else {
-                    pathData.push(`L ${x + offsetX} ${y + offsetY}`);
-                }
+                pathData.push(`L ${x + offsetX} ${y + offsetY}`);
             }
 
+            pathData.push(`L ${endPos.x} ${endPos.y}`);
+            const pathId = `snake-path-${start}-${end}`;
+
             return (
-                <path
-                    key={`snake-${start}-${end}`}
-                    d={pathData.join(' ')}
-                    stroke="#12ff27"
-                    strokeWidth="2px"
-                    strokeLinecap="round"
-                    fill="none"
-                ></path>
-            )
-        })
+                <g key={`snake-${start}-${end}`}>
+                    <defs>
+                        <path
+                            id={pathId}
+                            d={pathData.join(' ')}
+                            fill="none"
+                        />
+                    </defs>
+
+                    <path
+                        d={pathData.join(' ')}
+                        stroke="#FFFFFF"
+                        strokeWidth="2"
+                        fill="none"
+                        strokeLinecap="round"
+                    />
+                    {renderSnakeCircle(pathId, endPos)}
+
+                </g>
+            );
+        });
     }
 
     function updateCellsPositions() {

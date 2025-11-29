@@ -36,3 +36,22 @@
     transform: rotate(360deg);
   }
 }
+
+.title-game {
+  font-size: 3rem;
+  font-weight: 900;
+  color: #78a3fd;
+  text-shadow:
+          4px 4px 0 #77a1f8,
+          8px 8px 0 rgba(0, 0, 0, 0.2);
+  background: linear-gradient(45deg, #042ff5, #4094f5);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+
+
+
